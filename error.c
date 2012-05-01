@@ -490,6 +490,8 @@ VALUE rb_eScriptError;
 VALUE rb_eSyntaxError;
 VALUE rb_eLoadError;
 
+VALUE rb_eNoAttributeError;
+
 VALUE rb_eSystemCallError;
 VALUE rb_mErrno;
 static VALUE rb_eNOERROR;
@@ -1649,6 +1651,8 @@ Init_Exception(void)
     rb_eEncodingError = rb_define_class("EncodingError", rb_eStandardError);
     rb_eEncCompatError = rb_define_class_under(rb_cEncoding, "CompatibilityError", rb_eEncodingError);
 
+    rb_eNoAttributeError = rb_define_class("NoAttributeError", rb_eNameError);
+    
     syserr_tbl = st_init_numtable();
     rb_eSystemCallError = rb_define_class("SystemCallError", rb_eStandardError);
     rb_define_method(rb_eSystemCallError, "initialize", syserr_initialize, -1);

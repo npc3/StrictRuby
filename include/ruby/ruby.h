@@ -1294,6 +1294,8 @@ RUBY_EXTERN VALUE rb_eNameError;
 RUBY_EXTERN VALUE rb_eSyntaxError;
 RUBY_EXTERN VALUE rb_eLoadError;
 
+RUBY_EXTERN VALUE rb_eNoAttributeError;
+
 RUBY_EXTERN VALUE rb_eMathDomainError;
 
 RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;

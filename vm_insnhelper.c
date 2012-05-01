@@ -1321,7 +1321,8 @@ vm_getivar(VALUE obj, ID id, IC ic)
 	}
 	if (UNLIKELY(val == Qundef)) {
 	    rb_warning("instance variable %s not initialized", rb_id2name(id));
-	    val = Qnil;
+            rb_raise(rb_eNoAttributeError, "no instance variable named %s", rb_id2name(id));
+	    //val = Qnil;
 	}
 	return val;
     }
