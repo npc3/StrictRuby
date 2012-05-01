@@ -1670,13 +1670,22 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 VALUE rb_mStrictAttributeAccess;
 
 static VALUE
-strict_included(int argc, VALUE *argv, VALUE self) {
-    printf("fart\n");
+rb_strict_included(VALUE self, VALUE klass)
+{
+    RCLASS(klass)->strict = 1;
+    return Qnil;    
 }
 
-void Init_strict(void) {
+static VALUE rb_class_strict_questionmark(VALUE self)
+{
+    return RCLASS(self)->strict ? Qtrue : Qfalse;
+}
+
+void Init_strict(void)
+{
     rb_mStrictAttributeAccess = rb_define_module("StrictAttributeAccess");
-    rb_define_module_function(rb_mStrictAttributeAccess, "included", strict_included, 1 /*???*/);
+    rb_define_module_function(rb_mStrictAttributeAccess, "included", rb_strict_included, 1);
+    rb_define_method(rb_cClass, "strict?", rb_class_strict_questionmark, 0);
 }
 
 

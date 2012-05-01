@@ -1506,6 +1506,7 @@ rb_mod_initialize(VALUE module)
     if (rb_block_given_p()) {
 	rb_mod_module_exec(1, &module, module);
     }
+    RMODULE(module)->strict = 0;
     return Qnil;
 }
 

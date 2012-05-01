@@ -5,3 +5,4 @@ cd $DIR
 ../ruby error_exists.rb
 ../ruby strict_class_exists.rb
 ../ruby strict_class_included.rb
+../ruby strict_questionmark.rb
