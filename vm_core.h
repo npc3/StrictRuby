@@ -312,7 +312,7 @@ typedef struct rb_vm_struct {
 
     int src_encoding_index;
 
-    VALUE verbose, debug, progname;
+    VALUE verbose, debug, strict, progname;
     VALUE coverages;
 
     struct unlinked_method_entry_list_entry *unlinked_method_entry_list;

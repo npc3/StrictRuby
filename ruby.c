@@ -150,6 +150,7 @@ usage(const char *name)
 	"-W[level=2]     set warning level; 0=silence, 1=medium, 2=verbose",
 	"-x[directory]   strip off text before #!ruby line and perhaps cd to directory",
 	"--copyright     print the copyright",
+        "--strict        raise an error when accessing a non-existant instance variable",
 	"--version       print the version",
 	NULL
     };
@@ -1032,6 +1033,9 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 		opt->verbose = 1;
 		ruby_verbose = Qtrue;
 	    }
+            else if (strcmp("strict", s) == 0) {
+                ruby_strict = Qtrue;
+            }
 	    else if (strcmp("yydebug", s) == 0) {
 		if (envopt) goto noenvopt_long;
 		opt->dump |= DUMP_BIT(yydebug);
@@ -1759,6 +1763,8 @@ ruby_prog_init(void)
     rb_define_hooked_variable("$-W", &ruby_verbose, opt_W_getter, rb_gvar_readonly_setter);
     rb_define_variable("$DEBUG", &ruby_debug);
     rb_define_variable("$-d", &ruby_debug);
+
+    rb_define_variable("$STRICT", &ruby_strict);
 
     rb_define_hooked_variable("$0", &rb_progname, 0, set_arg0);
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);

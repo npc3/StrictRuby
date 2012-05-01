@@ -1,6 +1,6 @@
 class Test
   def fail
-    p @doesnt_exist
+    @doesnt_exist
   end
 end
 
@@ -12,6 +12,7 @@ p t.fail
 class Test
   include StrictAttributeAccess
 end
+
 
 p Test.strict?
 

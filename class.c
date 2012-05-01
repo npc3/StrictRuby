@@ -1667,18 +1667,18 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 
 /*dumb stuff*/
 
-VALUE rb_mStrictAttributeAccess;
+static VALUE rb_mStrictAttributeAccess;
 
 static VALUE
 rb_strict_included(VALUE self, VALUE klass)
 {
-    RCLASS(klass)->strict = 1;
+    RCLASS(klass)->strict = Qtrue;
     return Qnil;    
 }
 
 static VALUE rb_class_strict_questionmark(VALUE self)
 {
-    return RCLASS(self)->strict ? Qtrue : Qfalse;
+    return RCLASS(self)->strict;
 }
 
 void Init_strict(void)

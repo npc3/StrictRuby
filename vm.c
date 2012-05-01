@@ -2262,6 +2262,12 @@ ruby_vm_debug_ptr(rb_vm_t *vm)
 }
 
 VALUE *
+ruby_vm_strict_ptr(rb_vm_t *vm)
+{
+    return &vm->strict;
+}
+
+VALUE *
 rb_ruby_verbose_ptr(void)
 {
     return ruby_vm_verbose_ptr(GET_VM());
@@ -2271,4 +2277,10 @@ VALUE *
 rb_ruby_debug_ptr(void)
 {
     return ruby_vm_debug_ptr(GET_VM());
+}
+
+VALUE *
+rb_ruby_strict_ptr(void)
+{
+    return ruby_vm_strict_ptr(GET_VM());
 }

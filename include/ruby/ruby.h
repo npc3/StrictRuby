@@ -616,7 +616,7 @@ struct RClass {
     rb_classext_t *ptr;
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
-    char strict;
+    VALUE strict;
 };
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)
 #define RMODULE_IV_TBL(m) RCLASS_IV_TBL(m)
@@ -1151,8 +1151,10 @@ VALUE rb_equal(VALUE,VALUE);
 
 VALUE *rb_ruby_verbose_ptr(void);
 VALUE *rb_ruby_debug_ptr(void);
+VALUE *rb_ruby_strict_ptr(void);
 #define ruby_verbose (*rb_ruby_verbose_ptr())
 #define ruby_debug   (*rb_ruby_debug_ptr())
+#define ruby_strict (*rb_ruby_strict_ptr())
 
 PRINTF_ARGS(NORETURN(void rb_raise(VALUE, const char*, ...)), 2, 3);
 PRINTF_ARGS(NORETURN(void rb_fatal(const char*, ...)), 1, 2);
