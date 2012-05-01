@@ -1664,6 +1664,22 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 		 argc, n_mand, f_var ? "+" : "");
 }
 
+
+/*dumb stuff*/
+
+VALUE rb_mStrictAttributeAccess;
+
+static VALUE
+strict_included(int argc, VALUE *argv, VALUE self) {
+    printf("fart\n");
+}
+
+void Init_strict(void) {
+    rb_mStrictAttributeAccess = rb_define_module("StrictAttributeAccess");
+    rb_define_module_function(rb_mStrictAttributeAccess, "included", strict_included, 1 /*???*/);
+}
+
+
 /*!
  * \}
  */

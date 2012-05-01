@@ -1,0 +1,7 @@
+#!/bin/bash
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR
+../ruby test.rb
+../ruby error_exists.rb
+../ruby strict_class_exists.rb
+../ruby strict_class_included.rb
