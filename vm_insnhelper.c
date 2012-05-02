@@ -1284,14 +1284,6 @@ vm_search_const_defined_class(const VALUE cbase, ID id)
 #define USE_IC_FOR_IVAR 1
 #endif
 
-
-#ifndef NATES_TERRIBLE_MID_FILE_FUNCTION_DEFINITIONS
-#define NATES_TERRIBLE_MID_FILE_FUNCTION_DEFINITIONS
-/*this should probably be in a header or something, but oh well*/
-VALUE rb_class_strict_questionmark(VALUE self);
-void rb_noattribute_error(ID id, const char *fmt, ...);
-#endif
-
 static VALUE
 vm_getivar(VALUE obj, ID id, IC ic)
 {

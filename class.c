@@ -1681,9 +1681,8 @@ rb_class_strict_questionmark(VALUE self)
 {
     VALUE p;
     for(p = self; p; p = RCLASS_SUPER(p)) {
-        if(RTEST(RCLASS(p)->strict)) {
+        if(RTEST(RCLASS(p)->strict))
             return RCLASS(p)->strict;
-        }
     }
     return Qfalse;
 }
