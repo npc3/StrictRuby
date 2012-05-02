@@ -1676,9 +1676,16 @@ rb_strict_included(VALUE self, VALUE klass)
     return Qnil;    
 }
 
-static VALUE rb_class_strict_questionmark(VALUE self)
+VALUE
+rb_class_strict_questionmark(VALUE self)
 {
-    return RCLASS(self)->strict;
+    VALUE p;
+    for(p = self; p; p = RCLASS_SUPER(p)) {
+        if(RTEST(RCLASS(p)->strict)) {
+            return RCLASS(p)->strict;
+        }
+    }
+    return Qfalse;
 }
 
 void Init_strict(void)

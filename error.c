@@ -1035,6 +1035,22 @@ nometh_err_args(VALUE self)
     return rb_attr_get(self, rb_intern("args"));
 }
 
+/*copied from rb_name_error above*/
+void
+rb_noattribute_error(ID id, const char *fmt, ...)
+{
+    VALUE exc, argv[2];
+    va_list args;
+
+    va_start(args, fmt);
+    argv[0] = rb_vsprintf(fmt, args);
+    va_end(args);
+
+    argv[1] = ID2SYM(id);
+    exc = rb_class_new_instance(2, argv, rb_eNoAttributeError);
+    rb_exc_raise(exc);
+}
+
 void
 rb_invalid_str(const char *str, const char *type)
 {
