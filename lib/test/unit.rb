@@ -64,6 +64,8 @@ module Test
         opts.separator 'minitest options:'
         opts.version = MiniTest::Unit::VERSION
 
+        options[:retry] = true
+
         opts.on '-h', '--help', 'Display this help.' do
           puts opts
           exit
@@ -96,8 +98,17 @@ module Test
           end
         end
 
-        opts.on '--no-retry', "Don't retry running testcase when --jobs specified" do
-          options[:no_retry] = true
+        opts.on '--separate', "Restart job process after one testcase has done" do
+          options[:parallel] ||= 1
+          options[:separate] = true
+        end
+
+        opts.on '--retry', "Retry running testcase when --jobs specified" do
+          options[:retry] = true
+        end
+
+        opts.on '--no-retry', "Disable --retry" do
+          options[:retry] = false
         end
 
         opts.on '--ruby VAL', "Path to ruby; It'll have used at -j option" do |a|
@@ -106,6 +117,10 @@ module Test
 
         opts.on '-q', '--hide-skip', 'Hide skipped tests' do
           options[:hide_skip] = true
+        end
+
+        opts.on '--show-skip', 'Show skipped tests' do
+          options[:hide_skip] = false
         end
       end
 
@@ -116,7 +131,7 @@ module Test
           warn "#{caller(1)[0]}: warning: Parallel running disabled because can't get path to ruby; run specify with --ruby argument"
           options[:parallel] = nil
         else
-          options[:ruby] ||= RbConfig.ruby
+          options[:ruby] ||= [RbConfig.ruby]
         end
 
         true
@@ -213,7 +228,7 @@ module Test
         return false if !super
         result = false
         files.each {|f|
-          d = File.dirname(path = File.expand_path(f))
+          d = File.dirname(path = File.realpath(f))
           unless $:.include? d
             $: << d
           end
@@ -243,6 +258,8 @@ module Test
           new(io, io.pid, :waiting)
         end
 
+        attr_reader :quit_called
+
         def initialize(io, pid, status)
           @io = io
           @pid = pid
@@ -251,6 +268,7 @@ module Test
           @real_file = nil
           @loadpath = []
           @hooks = {}
+          @quit_called = false
         end
 
         def puts(*args)
@@ -258,10 +276,10 @@ module Test
         end
 
         def run(task,type)
-          @file = File.basename(task).gsub(/\.rb/,"")
+          @file = File.basename(task, ".rb")
           @real_file = task
           begin
-            puts "loadpath #{[Marshal.dump($:-@loadpath)].pack("m").gsub("\n","")}"
+            puts "loadpath #{[Marshal.dump($:-@loadpath)].pack("m0")}"
             @loadpath = $:.dup
             puts "run #{task} #{type}"
             @status = :prepare
@@ -285,8 +303,17 @@ module Test
         end
 
         def close
-          @io.close
+          begin
+            @io.close unless @io.closed?
+          rescue IOError; end
           self
+        end
+
+        def quit
+          return if @io.closed?
+          @quit_called = true
+          @io.puts "quit"
+          @io.close
         end
 
         def died(*additional)
@@ -347,24 +374,39 @@ module Test
         exit c
       end
 
+      def terminal_width
+        @terminal_width ||=
+          begin
+            require 'io/console'
+            $stdout.winsize[1]
+          rescue LoadError, NoMethodError
+            ENV["COLUMNS"].to_i.nonzero? || 80
+          end
+      end
+
+      def del_status_line
+        return unless @tty
+        print "\r"+" "*terminal_width+"\r"
+        $stdout.flush
+      end
+
+      def put_status(line)
+        return print(line) unless @tty
+        @status_line_size ||= 0
+        del_status_line
+        $stdout.flush
+        line = line[0...@terminal_width]
+        print line
+        $stdout.flush
+        @status_line_size = line.size
+      end
+
       def jobs_status
         return unless @options[:job_status]
         puts "" unless @options[:verbose]
         status_line = @workers.map(&:to_s).join(" ")
-        if @options[:job_status] == :replace and $stdout.tty?
-          @terminal_width ||=
-            begin
-              require 'io/console'
-              $stdout.winsize[1]
-            rescue LoadError, NoMethodError
-              ENV["COLUMNS"].to_i.nonzero? || 80
-            end
-          @jstr_size ||= 0
-          del_jobs_status
-          $stdout.flush
-          print status_line[0...@terminal_width]
-          $stdout.flush
-          @jstr_size = [status_line.size, @terminal_width].min
+        if @options[:job_status] == :replace and @tty
+          put_status status_line
         else
           puts status_line
         end
@@ -372,7 +414,7 @@ module Test
 
       def del_jobs_status
         return unless @options[:job_status] == :replace && @jstr_size.nonzero?
-        print "\r"+" "*@jstr_size+"\r"
+        del_status_line
       end
 
       def after_worker_quit(worker)
@@ -401,23 +443,30 @@ module Test
           rep = [] # FIXME: more good naming
 
           # Array of workers.
-          @workers = @options[:parallel].times.map {
-            worker = Worker.launch(@options[:ruby],@args)
+          launch_worker = Proc.new {
+            begin
+              worker = Worker.launch(@options[:ruby],@args)
+            rescue => e
+              warn "ERROR: Failed to launch job process - #{e.class}: #{e.message}"
+              exit 1
+            end
             worker.hook(:dead) do |w,info|
               after_worker_quit w
-              after_worker_down w, *info unless info.empty?
+              after_worker_down w, *info if !info.empty? && !worker.quit_called
             end
             worker
           }
+          @workers = @options[:parallel].times.map(&launch_worker)
 
           # Thread: watchdog
           watchdog = Thread.new do
             while stat = Process.wait2
               break if @interrupt # Break when interrupt
               pid, stat = stat
-              w = (@workers + @dead_workers).find{|x| pid == x.pid }.dup
+              w = (@workers + @dead_workers).find{|x| pid == x.pid }
               next unless w
-              unless w.status == :quit
+              w = w.dup
+              if w.status != :quit && !w.quit_called?
                 # Worker down
                 w.died(nil, !stat.signaled? && stat.exitstatus)
               end
@@ -435,11 +484,25 @@ module Test
               when /^okay$/
                 worker.status = :running
                 jobs_status
-              when /^ready$/
+              when /^ready(!?)$/
+                bang = $1
                 worker.status = :ready
                 if @tasks.empty?
-                  break unless @workers.find{|x| x.status == :running }
+                  unless @workers.find{|x| [:running, :prepare].include? x.status}
+                    break
+                  end
                 else
+                  if @options[:separate] && bang.empty?
+                    @workers_hash.delete worker.io
+                    @workers.delete worker
+                    @ios.delete worker.io
+                    new_worker = launch_worker.call()
+                    worker.quit
+                    @workers << new_worker
+                    @ios << new_worker.io
+                    @workers_hash[new_worker.io] = new_worker
+                    worker = new_worker
+                  end
                   worker.run(@tasks.shift, type)
                 end
 
@@ -459,7 +522,7 @@ module Test
               when /^bye (.+?)$/
                 after_worker_down worker, Marshal.load($1.unpack("m")[0])
               when /^bye$/
-                if shutting_down
+                if shutting_down || worker.quit_called
                   after_worker_quit worker
                 else
                   after_worker_down worker
@@ -493,43 +556,47 @@ module Test
                 end
             end
           end
-          @workers.each do |worker|
-            begin
-              timeout(1) do
-                worker.puts "quit"
-              end
-            rescue Errno::EPIPE
-            rescue Timeout::Error
-            end
-            worker.close
-          end
-          begin
-            timeout(0.2*@workers.size) do
-              Process.waitall
-            end
-          rescue Timeout::Error
+
+          if @workers
             @workers.each do |worker|
               begin
-                Process.kill(:KILL,worker.pid)
-              rescue Errno::ESRCH; end
+                timeout(1) do
+                  worker.quit
+                end
+              rescue Errno::EPIPE
+              rescue Timeout::Error
+              end
+              worker.close
+            end
+
+            begin
+              timeout(0.2*@workers.size) do
+                Process.waitall
+              end
+            rescue Timeout::Error
+              @workers.each do |worker|
+                begin
+                  Process.kill(:KILL,worker.pid)
+                rescue Errno::ESRCH; end
+              end
             end
           end
 
-          if @interrupt || @options[:no_retry] || @need_quit
+          if @interrupt || !@options[:retry] || @need_quit
             rep.each do |r|
               report.push(*r[:report])
             end
             @errors   += rep.map{|x| x[:result][0] }.inject(:+)
             @failures += rep.map{|x| x[:result][1] }.inject(:+)
             @skips    += rep.map{|x| x[:result][2] }.inject(:+)
-          else
+          elsif @workers
             puts ""
             puts "Retrying..."
             puts ""
             rep.each do |r|
               if r[:testcase] && r[:file] && !r[:report].empty?
                 require r[:file]
-                _run_suite(eval(r[:testcase]),type)
+                _run_suite(eval("::"+r[:testcase]),type)
               else
                 report.push(*r[:report])
                 @errors += r[:result][0]
@@ -557,6 +624,7 @@ module Test
       def _run_suites suites, type
         @interrupt = nil
         result = []
+        GC.start
         if @options[:parallel]
           _run_parallel suites, type, result
         else
@@ -575,6 +643,8 @@ module Test
         result
       end
 
+      alias mini_run_suite _run_suite
+
       # Overriding of MiniTest::Unit#puke
       def puke klass, meth, e
         # TODO:
@@ -583,6 +653,7 @@ module Test
         e = case e
             when MiniTest::Skip then
               @skips += 1
+              return "." if /no message given\z/ =~ e.message
               "Skipped:\n#{meth}(#{klass}) [#{location e}]:\n#{e.message}\n"
             when MiniTest::Assertion then
               @failures += 1
@@ -594,6 +665,11 @@ module Test
             end
         @report << e
         e[0, 1]
+      end
+
+      def initialize # :nodoc:
+        super
+        @tty = $stdout.tty?
       end
 
       def status(*args)

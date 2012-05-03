@@ -12,7 +12,7 @@ class Module # :nodoc:
   def infect_an_assertion meth, new_name, dont_flip = false # :nodoc:
     # warn "%-22p -> %p %p" % [meth, new_name, dont_flip]
     self.class_eval <<-EOM
-      def #{new_name} *args, &block
+      def #{new_name} *args
         return MiniTest::Spec.current.#{meth}(*args, &self) if
           Proc === self
         return MiniTest::Spec.current.#{meth}(args.first, self) if
@@ -138,20 +138,11 @@ class MiniTest::Spec < MiniTest::Unit::TestCase
     @@describe_stack
   end
 
-  def self.current # :nodoc:
-    @@current_spec
-  end
-
   ##
   # Returns the children of this spec.
 
   def self.children
     @children ||= []
-  end
-
-  def initialize name # :nodoc:
-    super
-    @@current_spec = self
   end
 
   def self.nuke_test_methods! # :nodoc:
@@ -192,10 +183,12 @@ class MiniTest::Spec < MiniTest::Unit::TestCase
   # write specs don't like class inheritence, so this goes way out of
   # its way to make sure that expectations aren't inherited.
   #
+  # This is also aliased to #specify and doesn't require a +desc+ arg.
+  #
   # Hint: If you _do_ want inheritence, use minitest/unit. You can mix
   # and match between assertions and expectations as much as you want.
 
-  def self.it desc, &block
+  def self.it desc = "anonymous", &block
     block ||= proc { skip "(no tests defined)" }
 
     @specs ||= 0
@@ -240,7 +233,9 @@ class MiniTest::Spec < MiniTest::Unit::TestCase
 
   # :stopdoc:
   class << self
-    attr_reader :name, :desc
+    attr_reader :desc
+    alias :specify :it
+    alias :name :to_s
   end
   # :startdoc:
 end
@@ -334,9 +329,13 @@ module MiniTest::Expectations
   #
   #    n.must_be :<=, 42
   #
+  # This can also do predicates:
+  #
+  #    str.must_be :empty?
+  #
   # :method: must_be
 
-  infect_an_assertion :assert_operator, :must_be
+  infect_an_assertion :assert_operator, :must_be, :reverse
 
   ##
   # See MiniTest::Assertions#assert_output
@@ -491,9 +490,13 @@ module MiniTest::Expectations
   #
   #    n.wont_be :<=, 42
   #
+  # This can also do predicates:
+  #
+  #    str.wont_be :empty?
+  #
   # :method: wont_be
 
-  infect_an_assertion :refute_operator, :wont_be
+  infect_an_assertion :refute_operator, :wont_be, :reverse
 
   ##
   # See MiniTest::Assertions#refute_respond_to

@@ -73,6 +73,11 @@ def extract_makefile(makefile, keep = true)
     end
     return false
   end
+  srcs = Dir[File.join($srcdir, "*.{#{SRC_EXT.join(%q{,})}}")].map {|fn| File.basename(fn)}.sort
+  if !srcs.empty?
+    old_srcs = m[/^ORIG_SRCS[ \t]*=[ \t](.*)/, 1] or return false
+    old_srcs.split.sort == srcs or return false
+  end
   $target = target
   $extconf_h = m[/^RUBY_EXTCONF_H[ \t]*=[ \t]*(\S+)/, 1]
   if $static.nil?
@@ -142,7 +147,7 @@ def extmake(target)
 	remove_const(:MAKEFILE_CONFIG)
 	const_set(:MAKEFILE_CONFIG, mkconfig)
       }
-      Object.class_eval {
+      MakeMakefile.class_eval {
 	remove_const(:CONFIG)
 	const_set(:CONFIG, mkconfig)
       }
@@ -152,7 +157,7 @@ def extmake(target)
 	old_objs = $objs
 	old_cleanfiles = $distcleanfiles
 	conf = ["#{$srcdir}/makefile.rb", "#{$srcdir}/extconf.rb"].find {|f| File.exist?(f)}
-	if (($extconf_h && !File.exist?($extconf_h)) ||
+	if (!ok || ($extconf_h && !File.exist?($extconf_h)) ||
 	    !(t = modified?(makefile, MTIMES)) ||
 	    [conf, "#{$srcdir}/depend"].any? {|f| modified?(f, [t])})
         then
@@ -185,7 +190,6 @@ def extmake(target)
 	# ignore
       ensure
 	rm_f "conftest*"
-	config = $0
 	$0 = $PROGRAM_NAME
       end
     end
@@ -235,7 +239,7 @@ def extmake(target)
 	remove_const(:MAKEFILE_CONFIG)
 	const_set(:MAKEFILE_CONFIG, mkconfig0)
       }
-      Object.class_eval {
+      MakeMakefile.class_eval {
 	remove_const(:CONFIG)
 	const_set(:CONFIG, mkconfig0)
       }
@@ -419,7 +423,7 @@ end unless $extstatic
 ext_prefix = "#{$top_srcdir}/ext"
 exts = $static_ext.sort_by {|t, i| i}.collect {|t, i| t}
 withes, withouts = %w[--with --without].collect {|w|
-  if not (w = %w[-extensions -ext].collect {|o|arg_config(w+o)}).any?
+  if !(w = %w[-extensions -ext].collect {|o|arg_config(w+o)}).any?
     nil
   elsif (w = w.grep(String)).empty?
     proc {true}
@@ -612,20 +616,20 @@ if $configure_only and $command_output
     end
     mf.puts
     targets = %w[all install static install-so install-rb clean distclean realclean]
-    targets.each do |target|
-      mf.puts "#{target}: $(extensions:/.=/#{target})"
+    targets.each do |tgt|
+      mf.puts "#{tgt}: $(extensions:/.=/#{tgt})"
     end
     mf.puts
     mf.puts "all: #{rubies.join(' ')}"
     mf.puts "#{rubies.join(' ')}: $(extensions:/.=/all)"
-    rubies.each do |target|
-      mf.puts "#{target}:\n\t$(Q)$(MAKE) $(MFLAGS) $@"
+    rubies.each do |tgt|
+      mf.puts "#{tgt}:\n\t$(Q)$(MAKE) $(MFLAGS) $@"
     end
     mf.puts
-    exec = config_string("exec") {|s| s + " "}
-    targets.each do |target|
+    exec = config_string("exec") {|str| str + " "}
+    targets.each do |tgt|
       exts.each do |d|
-        mf.puts "#{d[0..-2]}#{target}:\n\t$(Q)cd $(@D) && #{exec}$(MAKE) $(MFLAGS) $(@F)"
+        mf.puts "#{d[0..-2]}#{tgt}:\n\t$(Q)cd $(@D) && #{exec}$(MAKE) $(MFLAGS) $(@F)"
       end
     end
   end

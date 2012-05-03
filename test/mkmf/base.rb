@@ -67,7 +67,7 @@ class TestMkmf < Test::Unit::TestCase
     }
     mkconfig = {
       "hdrdir" => "$(top_srcdir)/include",
-      "srcdir" => "$(top_srcdir)/ext/#{$mdir}",
+      "srcdir" => "$(top_srcdir)",
       "topdir" => $topdir,
     }
     rbconfig0.each_pair {|key, val| rbconfig[key] ||= val.dup}
@@ -78,7 +78,7 @@ class TestMkmf < Test::Unit::TestCase
       remove_const(:MAKEFILE_CONFIG)
       const_set(:MAKEFILE_CONFIG, mkconfig)
     }
-    Object.class_eval {
+    MakeMakefile.class_eval {
       remove_const(:CONFIG)
       const_set(:CONFIG, mkconfig)
     }
@@ -101,12 +101,13 @@ class TestMkmf < Test::Unit::TestCase
       remove_const(:MAKEFILE_CONFIG)
       const_set(:MAKEFILE_CONFIG, mkconfig0)
     }
-    Object.class_eval {
+    MakeMakefile.class_eval {
       remove_const(:CONFIG)
       const_set(:CONFIG, mkconfig0)
     }
     Logging.quiet = @quiet
     Logging.log_close
+    FileUtils.rm_f("mkmf.log")
     Dir.chdir(@curdir)
     FileUtils.rm_rf(@tmpdir)
   end

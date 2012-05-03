@@ -68,6 +68,9 @@
 #  define ElfW(x) Elf32##_##x
 # endif
 #endif
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 typedef struct {
     const char *dirname;
@@ -84,7 +87,8 @@ typedef struct {
 static char binary_filename[PATH_MAX];
 
 static unsigned long
-uleb128(char **p) {
+uleb128(char **p)
+{
     unsigned long r = 0;
     int s = 0;
     for (;;) {
@@ -100,7 +104,8 @@ uleb128(char **p) {
 }
 
 static long
-sleb128(char **p) {
+sleb128(char **p)
+{
     long r = 0;
     int s = 0;
     for (;;) {

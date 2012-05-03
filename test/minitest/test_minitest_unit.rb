@@ -6,9 +6,7 @@
 
 require 'stringio'
 require 'pathname'
-require 'minitest/unit'
-
-MiniTest::Unit.autorun
+require 'minitest/autorun'
 
 module MyModule; end
 class AnError < StandardError; include MyModule; end
@@ -16,7 +14,7 @@ class ImmutableString < String; def inspect; super.freeze; end; end
 
 class TestMiniTestUnit < MiniTest::Unit::TestCase
   pwd = Pathname.new(File.expand_path(Dir.pwd))
-  basedir = Pathname.new(File.expand_path(MiniTest::MINI_DIR)) + 'mini'
+  basedir = Pathname.new(File.expand_path("lib/minitest")) + 'mini'
   basedir = basedir.relative_path_from(pwd).to_s
   MINITEST_BASE_DIR = basedir[/\A\./] ? basedir : "./#{basedir}"
   BT_MIDDLE = ["#{MINITEST_BASE_DIR}/test.rb:161:in `each'",
@@ -188,6 +186,38 @@ Finished tests in 0.00
     ex = ["-e:1"]
     fu = MiniTest::filter_backtrace(bt)
     assert_equal ex, fu
+  end
+
+  def test_run_test
+    tc = Class.new(MiniTest::Unit::TestCase) do
+      attr_reader :foo
+
+      def run_test name
+        @foo = "hi mom!"
+        super
+        @foo = "okay"
+      end
+
+      def test_something
+        assert_equal "hi mom!", foo
+      end
+    end
+
+    Object.const_set(:ATestCase, tc)
+
+    @tu.run %w[--seed 42]
+
+    expected = "Run options: --seed 42
+
+# Running tests:
+
+.
+
+Finished tests in 0.00
+
+1 tests, 1 assertions, 0 failures, 0 errors, 0 skips
+"
+    assert_report expected
   end
 
   def test_run_error
@@ -587,7 +617,7 @@ Finished tests in 0.00
   end
 
   def util_expand_bt bt
-    if RUBY_VERSION =~ /^1\.9/ then
+    if RUBY_VERSION >= '1.9.0' then
       bt.map { |f| (f =~ /^\./) ? File.expand_path(f) : f }
     else
       bt
@@ -883,6 +913,13 @@ class TestMiniTestUnitTestCase < MiniTest::Unit::TestCase
     @tc.assert_operator 2, :>, 1
   end
 
+  def test_assert_operator_bad_object
+    bad = Object.new
+    def bad.==(other) true end
+
+    @tc.assert_operator bad, :equal?, bad
+  end
+
   def test_assert_operator_triggered
     util_assert_triggered "Expected 2 to be < 1." do
       @tc.assert_operator 2, :<, 1
@@ -990,7 +1027,7 @@ FILE:LINE:in `test_assert_raises_triggered_different'
 ---------------"
 
     actual = e.message.gsub(/^.+:\d+/, 'FILE:LINE')
-    actual.gsub!(/block \(\d+ levels\) in /, '') if RUBY_VERSION =~ /^1\.9/
+    actual.gsub!(/block \(\d+ levels\) in /, '') if RUBY_VERSION >= '1.9.0'
 
     assert_equal expected, actual
   end
@@ -1011,7 +1048,7 @@ FILE:LINE:in `test_assert_raises_triggered_different_msg'
 ---------------"
 
     actual = e.message.gsub(/^.+:\d+/, 'FILE:LINE')
-    actual.gsub!(/block \(\d+ levels\) in /, '') if RUBY_VERSION =~ /^1\.9/
+    actual.gsub!(/block \(\d+ levels\) in /, '') if RUBY_VERSION >= '1.9.0'
 
     assert_equal expected, actual
   end
@@ -1055,7 +1092,7 @@ FILE:LINE:in `test_assert_raises_triggered_subclass'
 ---------------"
 
     actual = e.message.gsub(/^.+:\d+/, 'FILE:LINE')
-    actual.gsub!(/block \(\d+ levels\) in /, '') if RUBY_VERSION =~ /^1\.9/
+    actual.gsub!(/block \(\d+ levels\) in /, '') if RUBY_VERSION >= '1.9.0'
 
     assert_equal expected, actual
   end
@@ -1201,6 +1238,18 @@ FILE:LINE:in `test_assert_raises_triggered_subclass'
 
     assert_equal 1, MiniTest::Unit::TestCase.test_suites.size
     assert_equal [ATestCase], MiniTest::Unit::TestCase.test_suites
+  end
+
+  def test_expectation
+    @assertion_count = 2
+
+    @tc.assert_equal true, 1.must_equal(1)
+  end
+
+  def test_expectation_triggered
+    util_assert_triggered "Expected: 2\n  Actual: 1" do
+      1.must_equal 2
+    end
   end
 
   def test_flunk
@@ -1362,6 +1411,13 @@ FILE:LINE:in `test_assert_raises_triggered_subclass'
 
   def test_refute_operator
     @tc.refute_operator 2, :<, 1
+  end
+
+  def test_refute_operator_bad_object
+    bad = Object.new
+    def bad.==(other) true end
+
+    @tc.refute_operator true, :equal?, bad
   end
 
   def test_refute_operator_triggered

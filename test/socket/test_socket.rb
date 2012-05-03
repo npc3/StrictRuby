@@ -1,14 +1,29 @@
 begin
   require "socket"
   require "tmpdir"
+  require "fcntl"
   require "test/unit"
 rescue LoadError
 end
 
 class TestSocket < Test::Unit::TestCase
   def test_socket_new
-    s = Socket.new(:INET, :STREAM)
-    assert_kind_of(Socket, s)
+    begin
+      s = Socket.new(:INET, :STREAM)
+      assert_kind_of(Socket, s)
+    ensure
+      s.close
+    end
+  end
+
+  def test_socket_new_cloexec
+    return unless defined? Fcntl::FD_CLOEXEC
+    begin
+      s = Socket.new(:INET, :STREAM)
+      assert(s.close_on_exec?)
+    ensure
+      s.close
+    end
   end
 
   def test_unpack_sockaddr
@@ -99,6 +114,22 @@ class TestSocket < Test::Unit::TestCase
     }
   end
 
+  def test_tcp_cloexec
+    return unless defined? Fcntl::FD_CLOEXEC
+    TCPServer.open(0) {|serv|
+      addr = serv.connect_address
+      addr.connect {|s1|
+        s2 = serv.accept
+        begin
+          assert(s2.close_on_exec?)
+        ensure
+          s2.close
+        end
+      }
+
+    }
+  end
+
   def random_port
     # IANA suggests dynamic port for 49152 to 65535
     # http://www.iana.org/assignments/port-numbers
@@ -155,6 +186,7 @@ class TestSocket < Test::Unit::TestCase
               assert(s2raddr.to_sockaddr.empty? ||
                      s1laddr.to_sockaddr.empty? ||
                      s2raddr.unix_path == s1laddr.unix_path)
+              assert(s2.close_on_exec?)
             ensure
               s2.close
             end
@@ -290,6 +322,12 @@ class TestSocket < Test::Unit::TestCase
         }
 
         ip_addrs.each {|ai|
+          if /linux/ =~ RUBY_PLATFORM && ai.ip_address.include?('%') &&
+            (`uname -r`[/[0-9.]+/].split('.').map(&:to_i) <=> [2,6,18]) <= 0
+            # Cent OS 5.6 (2.6.18-238.19.1.el5xen) doesn't correctly work
+            # sendmsg with pktinfo for link-local ipv6 addresses
+            next
+          end
           Addrinfo.udp(ai.ip_address, port).connect {|s|
             msg1 = "<<<#{ai.inspect}>>>"
             s.sendmsg msg1

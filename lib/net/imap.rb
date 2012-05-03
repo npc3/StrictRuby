@@ -200,7 +200,7 @@ module Net
   #
   class IMAP
     include MonitorMixin
-    if defined?(OpenSSL)
+    if defined?(OpenSSL::SSL)
       include OpenSSL
       include SSL
     end
@@ -1065,6 +1065,10 @@ module Net
       @exception = nil
 
       @greeting = get_response
+      if @greeting.nil?
+        @sock.close
+        raise Error, "connection closed"
+      end
       if @greeting.name == "BYE"
         @sock.close
         raise ByeResponseError, @greeting
@@ -1434,7 +1438,7 @@ module Net
     end
 
     def start_tls_session(params = {})
-      unless defined?(OpenSSL)
+      unless defined?(OpenSSL::SSL)
         raise "SSL extension not installed"
       end
       if @sock.kind_of?(OpenSSL::SSL::SSLSocket)
@@ -2180,12 +2184,12 @@ module Net
         when "FETCH"
           shift_token
           match(T_SPACE)
-          data = FetchData.new(n, msg_att)
+          data = FetchData.new(n, msg_att(n))
           return UntaggedResponse.new(name, data, @str)
         end
       end
 
-      def msg_att
+      def msg_att(n)
         match(T_LPAR)
         attr = {}
         while true
@@ -2214,7 +2218,7 @@ module Net
           when /\A(?:UID)\z/ni
             name, val = uid_data
           else
-            parse_error("unknown attribute `%s'", token.value)
+            parse_error("unknown attribute `%s' for {%d}", token.value, n)
           end
           attr[name] = val
         end
@@ -2281,6 +2285,11 @@ module Net
       def rfc822_text
         token = match(T_ATOM)
         name = token.value.upcase
+        token = lookahead
+        if token.symbol == T_LBRA
+          shift_token
+          match(T_RBRA)
+        end
         match(T_SPACE)
         return name, nstring
       end

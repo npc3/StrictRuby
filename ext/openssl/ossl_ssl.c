@@ -148,10 +148,9 @@ ossl_sslctx_s_alloc(VALUE klass)
 
     ctx = SSL_CTX_new(SSLv23_method());
     if (!ctx) {
-        ossl_raise(eSSLError, "SSL_CTX_new:");
+        ossl_raise(eSSLError, "SSL_CTX_new");
     }
     SSL_CTX_set_mode(ctx, mode);
-    SSL_CTX_set_options(ctx, SSL_OP_ALL);
     return Data_Wrap_Struct(klass, 0, ossl_sslctx_free, ctx);
 }
 
@@ -185,7 +184,7 @@ ossl_sslctx_set_ssl_version(VALUE self, VALUE ssl_method)
     }
     Data_Get_Struct(self, SSL_CTX, ctx);
     if (SSL_CTX_set_ssl_version(ctx, method) != 1) {
-        ossl_raise(eSSLError, "SSL_CTX_set_ssl_version:");
+        ossl_raise(eSSLError, "SSL_CTX_set_ssl_version");
     }
 
     return ssl_method;
@@ -590,14 +589,14 @@ ossl_sslctx_setup(VALUE self)
     if (cert && key) {
         if (!SSL_CTX_use_certificate(ctx, cert)) {
             /* Adds a ref => Safe to FREE */
-            ossl_raise(eSSLError, "SSL_CTX_use_certificate:");
+            ossl_raise(eSSLError, "SSL_CTX_use_certificate");
         }
         if (!SSL_CTX_use_PrivateKey(ctx, key)) {
             /* Adds a ref => Safe to FREE */
-            ossl_raise(eSSLError, "SSL_CTX_use_PrivateKey:");
+            ossl_raise(eSSLError, "SSL_CTX_use_PrivateKey");
         }
         if (!SSL_CTX_check_private_key(ctx)) {
-            ossl_raise(eSSLError, "SSL_CTX_check_private_key:");
+            ossl_raise(eSSLError, "SSL_CTX_check_private_key");
         }
     }
 
@@ -643,7 +642,11 @@ ossl_sslctx_setup(VALUE self)
     if(!NIL_P(val)) SSL_CTX_set_verify_depth(ctx, NUM2INT(val));
 
     val = ossl_sslctx_get_options(self);
-    if(!NIL_P(val)) SSL_CTX_set_options(ctx, NUM2LONG(val));
+    if(!NIL_P(val)) {
+    	SSL_CTX_set_options(ctx, NUM2LONG(val));
+    } else {
+	SSL_CTX_set_options(ctx, SSL_OP_ALL);
+    }
     rb_obj_freeze(self);
 
     val = ossl_sslctx_get_sess_id_ctx(self);
@@ -651,7 +654,7 @@ ossl_sslctx_setup(VALUE self)
 	StringValue(val);
 	if (!SSL_CTX_set_session_id_context(ctx, (unsigned char *)RSTRING_PTR(val),
 					    RSTRING_LENINT(val))){
-	    ossl_raise(eSSLError, "SSL_CTX_set_session_id_context:");
+	    ossl_raise(eSSLError, "SSL_CTX_set_session_id_context");
 	}
     }
 
@@ -771,7 +774,7 @@ ossl_sslctx_set_ciphers(VALUE self, VALUE v)
         return Qnil;
     }
     if (!SSL_CTX_set_cipher_list(ctx, RSTRING_PTR(str))) {
-        ossl_raise(eSSLError, "SSL_CTX_set_cipher_list:");
+        ossl_raise(eSSLError, "SSL_CTX_set_cipher_list");
     }
 
     return v;
@@ -1058,14 +1061,14 @@ ossl_ssl_setup(VALUE self)
 
         ssl = SSL_new(ctx);
         if (!ssl) {
-            ossl_raise(eSSLError, "SSL_new:");
+            ossl_raise(eSSLError, "SSL_new");
         }
         DATA_PTR(self) = ssl;
 
 #ifdef HAVE_SSL_SET_TLSEXT_HOST_NAME
         if (!NIL_P(hostname)) {
            if (SSL_set_tlsext_host_name(ssl, StringValuePtr(hostname)) != 1)
-               ossl_raise(eSSLError, "SSL_set_tlsext_host_name:");
+               ossl_raise(eSSLError, "SSL_set_tlsext_host_name");
         }
 #endif
         io = ossl_ssl_get_io(self);
@@ -1273,7 +1276,7 @@ ossl_ssl_read_internal(int argc, VALUE *argv, VALUE self, int nonblock)
 		if(ERR_peek_error() == 0 && nread == 0) rb_eof_error();
 		rb_sys_fail(0);
 	    default:
-		ossl_raise(eSSLError, "SSL_read:");
+		ossl_raise(eSSLError, "SSL_read");
 	    }
         }
     }
@@ -1350,7 +1353,7 @@ ossl_ssl_write_internal(VALUE self, VALUE str, int nonblock)
 	    case SSL_ERROR_SYSCALL:
 		if (errno) rb_sys_fail(0);
 	    default:
-		ossl_raise(eSSLError, "SSL_write:");
+		ossl_raise(eSSLError, "SSL_write");
 	    }
         }
     }
@@ -1590,6 +1593,8 @@ ossl_ssl_session_reused(VALUE self)
     case 0:	return Qfalse;
     default:	ossl_raise(eSSLError, "SSL_session_reused");
     }
+
+    UNREACHABLE;
 }
 
 /*
@@ -1956,6 +1961,7 @@ Init_ossl_ssl()
     rb_define_method(cSSLSocket, "state",      ossl_ssl_get_state, 0);
     rb_define_method(cSSLSocket, "pending",    ossl_ssl_pending, 0);
     rb_define_method(cSSLSocket, "session_reused?",    ossl_ssl_session_reused, 0);
+    /* implementation of OpenSSL::SSL::SSLSocket#session is in lib/openssl/ssl.rb */
     rb_define_method(cSSLSocket, "session=",    ossl_ssl_set_session, 1);
     rb_define_method(cSSLSocket, "verify_result", ossl_ssl_get_verify_result, 0);
     rb_define_method(cSSLSocket, "client_ca", ossl_ssl_get_client_ca_list, 0);
@@ -1966,18 +1972,20 @@ Init_ossl_ssl()
     ossl_ssl_def_const(VERIFY_PEER);
     ossl_ssl_def_const(VERIFY_FAIL_IF_NO_PEER_CERT);
     ossl_ssl_def_const(VERIFY_CLIENT_ONCE);
-    /* Not introduce constants included in OP_ALL such as...
-     * ossl_ssl_def_const(OP_MICROSOFT_SESS_ID_BUG);
-     * ossl_ssl_def_const(OP_NETSCAPE_CHALLENGE_BUG);
-     * ossl_ssl_def_const(OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG);
-     * ossl_ssl_def_const(OP_SSLREF2_REUSE_CERT_TYPE_BUG);
-     * ossl_ssl_def_const(OP_MICROSOFT_BIG_SSLV3_BUFFER);
-     * ossl_ssl_def_const(OP_MSIE_SSLV2_RSA_PADDING);
-     * ossl_ssl_def_const(OP_SSLEAY_080_CLIENT_DH_BUG);
-     * ossl_ssl_def_const(OP_TLS_D5_BUG);
-     * ossl_ssl_def_const(OP_TLS_BLOCK_PADDING_BUG);
-     * ossl_ssl_def_const(OP_DONT_INSERT_EMPTY_FRAGMENTS);
+    /* Introduce constants included in OP_ALL.  These constants are mostly for
+     * unset some bits in OP_ALL such as;
+     *   ctx.options = OP_ALL & ~OP_DONT_INSERT_EMPTY_FRAGMENTS
      */
+    ossl_ssl_def_const(OP_MICROSOFT_SESS_ID_BUG);
+    ossl_ssl_def_const(OP_NETSCAPE_CHALLENGE_BUG);
+    ossl_ssl_def_const(OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG);
+    ossl_ssl_def_const(OP_SSLREF2_REUSE_CERT_TYPE_BUG);
+    ossl_ssl_def_const(OP_MICROSOFT_BIG_SSLV3_BUFFER);
+    ossl_ssl_def_const(OP_MSIE_SSLV2_RSA_PADDING);
+    ossl_ssl_def_const(OP_SSLEAY_080_CLIENT_DH_BUG);
+    ossl_ssl_def_const(OP_TLS_D5_BUG);
+    ossl_ssl_def_const(OP_TLS_BLOCK_PADDING_BUG);
+    ossl_ssl_def_const(OP_DONT_INSERT_EMPTY_FRAGMENTS);
     ossl_ssl_def_const(OP_ALL);
 #if defined(SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION)
     ossl_ssl_def_const(OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);

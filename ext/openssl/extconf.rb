@@ -15,6 +15,7 @@
 =end
 
 require "mkmf"
+require_relative 'deprecation'
 
 dir_config("openssl")
 dir_config("kerberos")
@@ -22,15 +23,11 @@ dir_config("kerberos")
 message "=== OpenSSL for Ruby configurator ===\n"
 
 ##
-# Adds -Wall -DOSSL_DEBUG for compilation and some more targets when GCC is used
+# Adds -DOSSL_DEBUG for compilation and some more targets when GCC is used
 # To turn it on, use: --with-debug or --enable-debug
 #
 if with_config("debug") or enable_config("debug")
   $defs.push("-DOSSL_DEBUG") unless $defs.include? "-DOSSL_DEBUG"
-
-  if CONFIG['GCC'] == 'yes'
-    $CPPFLAGS += " -Wall" unless $CPPFLAGS.split.include? "-Wall"
-  end
 end
 
 message "=== Checking for system dependent stuff... ===\n"
@@ -61,8 +58,9 @@ unless have_header("openssl/conf_api.h")
   message "OpenSSL 0.9.6 or later required.\n"
   exit 1
 end
-
-%w"rb_str_set_len rb_block_call".each {|func| have_func(func, "ruby.h")}
+unless OpenSSL.check_func("SSL_library_init()", "openssl/ssl.h")
+  abort "Ignore OpenSSL broken by Apple"
+end
 
 message "=== Checking for OpenSSL features... ===\n"
 have_func("ERR_peek_last_error")
@@ -115,6 +113,7 @@ if have_header("openssl/engine.h")
   have_func("ENGINE_get_digest")
   have_func("ENGINE_get_cipher")
   have_func("ENGINE_cleanup")
+  have_func("ENGINE_load_dynamic")
   have_func("ENGINE_load_4758cca")
   have_func("ENGINE_load_aep")
   have_func("ENGINE_load_atalla")
@@ -123,6 +122,12 @@ if have_header("openssl/engine.h")
   have_func("ENGINE_load_nuron")
   have_func("ENGINE_load_sureware")
   have_func("ENGINE_load_ubsec")
+  have_func("ENGINE_load_padlock")
+  have_func("ENGINE_load_capi")
+  have_func("ENGINE_load_gmp")
+  have_func("ENGINE_load_gost")
+  have_func("ENGINE_load_cryptodev")
+  have_func("ENGINE_load_aesni")
 end
 have_func("DH_generate_parameters_ex")
 have_func("DSA_generate_parameters_ex")

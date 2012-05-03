@@ -222,7 +222,7 @@ rb_singleton_class_clone(VALUE obj)
 	return klass;
     else {
 	/* copy singleton(unnamed) class */
-	VALUE clone = class_alloc((RBASIC(klass)->flags & ~(FL_MARK)), 0);
+	VALUE clone = class_alloc(RBASIC(klass)->flags, 0);
 
 	if (BUILTIN_TYPE(obj) == T_CLASS) {
 	    RBASIC(clone)->klass = clone;
@@ -1111,11 +1111,13 @@ rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
 
 /*
  *  call-seq:
- *     obj.methods    -> array
+ *     obj.methods(all=true)    -> array
  *
  *  Returns a list of the names of public and protected methods of
  *  <i>obj</i>. This will include all the methods accessible in
  *  <i>obj</i>'s ancestors.
+ *  If the <i>all</i> parameter is set to <code>false</code>, only those methods
+ *  in the receiver will be listed.
  *
  *     class Klass
  *       def klass_method()
@@ -1133,9 +1135,6 @@ rb_obj_methods(int argc, VALUE *argv, VALUE obj)
 {
   retry:
     if (argc == 0) {
-	VALUE args[1];
-
-	args[0] = Qtrue;
 	return class_instance_method_list(argc, argv, CLASS_OF(obj), 1, ins_methods_i);
     }
     else {
@@ -1650,18 +1649,12 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
     }
     va_end(vargs);
 
-    if (argi < argc)
-	goto argc_error;
+    if (argi < argc) {
+      argc_error:
+	rb_error_arity(argc, n_mand, f_var ? UNLIMITED_ARGUMENTS : n_mand + n_opt);
+    }
 
     return argc;
-
-  argc_error:
-    if (0 < n_opt)
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d..%d%s)",
-		 argc, n_mand, n_mand + n_opt, f_var ? "+" : "");
-    else
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d%s)",
-		 argc, n_mand, f_var ? "+" : "");
 }
 
 

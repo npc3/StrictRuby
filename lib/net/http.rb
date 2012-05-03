@@ -21,9 +21,9 @@
 
 require 'net/protocol'
 require 'uri'
-autoload :OpenSSL, 'openssl'
 
 module Net   #:nodoc:
+  autoload :OpenSSL, 'openssl'
 
   # :stopdoc:
   class HTTPBadResponse < StandardError; end
@@ -256,7 +256,7 @@ module Net   #:nodoc:
   #   uri = URI('https://secure.example.com/some_path?query=string')
   #
   #   Net::HTTP.start(uri.host, uri.port,
-  #     :use_ssl => uri.scheme == 'https').start do |http|
+  #     :use_ssl => uri.scheme == 'https') do |http|
   #     request = Net::HTTP::Get.new uri.request_uri
   #
   #     response = http.request request # Net::HTTPResponse object
@@ -451,7 +451,8 @@ module Net   #:nodoc:
         }
       else
         uri = uri_or_host
-        new(uri.hostname, uri.port).start {|http|
+        start(uri.hostname, uri.port,
+              :use_ssl => uri.scheme == 'https') {|http|
           return http.request_get(uri.request_uri, &block)
         }
       end
@@ -479,7 +480,8 @@ module Net   #:nodoc:
       req = Post.new(url.request_uri)
       req.form_data = params
       req.basic_auth url.user, url.password if url.user
-      new(url.hostname, url.port).start {|http|
+      start(url.hostname, url.port,
+            :use_ssl => url.scheme == 'https' ) {|http|
         http.request(req)
       }
     end
@@ -576,7 +578,8 @@ module Net   #:nodoc:
       @address = address
       @port    = (port || HTTP.default_port)
       @curr_http_version = HTTPVersion
-      @no_keepalive_server = false
+      @keep_alive_timeout = 2
+      @last_communicated = nil
       @close_on_empty_response = false
       @socket  = nil
       @started = false
@@ -589,10 +592,8 @@ module Net   #:nodoc:
       @enable_post_connection_check = true
       @compression = nil
       @sspi_enabled = false
-      if defined?(SSL_ATTRIBUTES)
-        SSL_ATTRIBUTES.each do |name|
-          instance_variable_set "@#{name}", nil
-        end
+      SSL_IVNAMES.each do |ivname|
+        instance_variable_set ivname, nil
       end
     end
 
@@ -623,13 +624,13 @@ module Net   #:nodoc:
     # Number of seconds to wait for the connection to open. Any number
     # may be used, including Floats for fractional seconds. If the HTTP
     # object cannot open a connection in this many seconds, it raises a
-    # TimeoutError exception.
+    # Net::OpenTimeout exception.
     attr_accessor :open_timeout
 
     # Number of seconds to wait for one block to be read (via one read(2)
     # call). Any number may be used, including Floats for fractional
     # seconds. If the HTTP object cannot read data in this many seconds,
-    # it raises a TimeoutError exception.
+    # it raises a Net::ReadTimeout exception.
     attr_reader :read_timeout
 
     # Setter for the read_timeout attribute.
@@ -647,6 +648,12 @@ module Net   #:nodoc:
       @socket.continue_timeout = sec if @socket
       @continue_timeout = sec
     end
+
+    # Seconds to reuse the connection of the previous request.
+    # If the idle time is less than this Keep-Alive Timeout,
+    # Net::HTTP reuses the TCP/IP socket used by the previous communication.
+    # The default value is 2 seconds.
+    attr_accessor :keep_alive_timeout
 
     # Returns true if the HTTP session has been started.
     def started?
@@ -674,10 +681,32 @@ module Net   #:nodoc:
       @use_ssl = flag
     end
 
-    SSL_ATTRIBUTES = %w(
-      ssl_version key cert ca_file ca_path cert_store ciphers
-      verify_mode verify_callback verify_depth ssl_timeout
-    )
+    SSL_IVNAMES = [
+      :@ca_file,
+      :@ca_path,
+      :@cert,
+      :@cert_store,
+      :@ciphers,
+      :@key,
+      :@ssl_timeout,
+      :@ssl_version,
+      :@verify_callback,
+      :@verify_depth,
+      :@verify_mode,
+    ]
+    SSL_ATTRIBUTES = [
+      :ca_file,
+      :ca_path,
+      :cert,
+      :cert_store,
+      :ciphers,
+      :key,
+      :ssl_timeout,
+      :ssl_version,
+      :verify_callback,
+      :verify_depth,
+      :verify_mode,
+    ]
 
     # Sets path of a CA certification file in PEM format.
     #
@@ -759,16 +788,17 @@ module Net   #:nodoc:
 
     def connect
       D "opening connection to #{conn_address()}..."
-      s = timeout(@open_timeout) { TCPSocket.open(conn_address(), conn_port()) }
+      s = Timeout.timeout(@open_timeout, Net::OpenTimeout) {
+        TCPSocket.open(conn_address(), conn_port())
+      }
       D "opened"
       if use_ssl?
         ssl_parameters = Hash.new
         iv_list = instance_variables
-        SSL_ATTRIBUTES.each do |name|
-          ivname = "@#{name}".intern
+        SSL_IVNAMES.each_with_index do |ivname, i|
           if iv_list.include?(ivname) and
-             value = instance_variable_get(ivname)
-            ssl_parameters[name] = value
+            value = instance_variable_get(ivname)
+            ssl_parameters[SSL_ATTRIBUTES[i]] = value if value
           end
         end
         @ssl_context = OpenSSL::SSL::SSLContext.new
@@ -783,20 +813,20 @@ module Net   #:nodoc:
       if use_ssl?
         begin
           if proxy?
-            @socket.writeline sprintf('CONNECT %s:%s HTTP/%s',
-                                      @address, @port, HTTPVersion)
-            @socket.writeline "Host: #{@address}:#{@port}"
+            buf = "CONNECT #{@address}:#{@port} HTTP/#{HTTPVersion}\r\n"
+            buf << "Host: #{@address}:#{@port}\r\n"
             if proxy_user
               credential = ["#{proxy_user}:#{proxy_pass}"].pack('m')
               credential.delete!("\r\n")
-              @socket.writeline "Proxy-Authorization: Basic #{credential}"
+              buf << "Proxy-Authorization: Basic #{credential}\r\n"
             end
-            @socket.writeline ''
+            buf << "\r\n"
+            @socket.write(buf)
             HTTPResponse.read_new(@socket).value
           end
           # Server Name Indication (SNI) RFC 3546
           s.hostname = @address if s.respond_to? :hostname=
-          timeout(@open_timeout) { s.connect }
+          Timeout.timeout(@open_timeout, Net::OpenTimeout) { s.connect }
           if @ssl_context.verify_mode != OpenSSL::SSL::VERIFY_NONE
             s.post_connection_check(@address)
           end
@@ -1311,18 +1341,38 @@ module Net   #:nodoc:
       res
     end
 
+    IDEMPOTENT_METHODS_ = %w/GET HEAD PUT DELETE OPTIONS TRACE/ # :nodoc:
+
     def transport_request(req)
-      begin_transport req
-      res = catch(:response) {
-        req.exec @socket, @curr_http_version, edit_path(req.path)
-        begin
-          res = HTTPResponse.read_new(@socket)
-        end while res.kind_of?(HTTPContinue)
-        res.reading_body(@socket, req.response_body_permitted?) {
-          yield res if block_given?
+      count = 0
+      begin
+        begin_transport req
+        res = catch(:response) {
+          req.exec @socket, @curr_http_version, edit_path(req.path)
+          begin
+            res = HTTPResponse.read_new(@socket)
+          end while res.kind_of?(HTTPContinue)
+          res.reading_body(@socket, req.response_body_permitted?) {
+            yield res if block_given?
+          }
+          res
         }
-        res
-      }
+      rescue Net::OpenTimeout
+        raise
+      rescue Net::ReadTimeout, IOError, EOFError,
+             Errno::ECONNRESET, Errno::ECONNABORTED, Errno::EPIPE,
+             OpenSSL::SSL::SSLError, Timeout::Error => exception
+        if count == 0 && IDEMPOTENT_METHODS_.include?(req.method)
+          count += 1
+          @socket.close if @socket and not @socket.closed?
+          D "Conn close because of error #{exception}, and retry"
+          retry
+        end
+        D "Conn close because of error #{exception}"
+        @socket.close if @socket and not @socket.closed?
+        raise
+      end
+
       end_transport req, res
       res
     rescue => exception
@@ -1332,7 +1382,14 @@ module Net   #:nodoc:
     end
 
     def begin_transport(req)
-      connect if @socket.closed?
+      if @socket.closed?
+        connect
+      elsif @last_communicated && @last_communicated + @keep_alive_timeout < Time.now
+        D 'Conn close because of keep_alive_timeout'
+        @socket.close
+        connect
+      end
+
       if not req.response_body_permitted? and @close_on_empty_response
         req['connection'] ||= 'close'
       end
@@ -1341,6 +1398,7 @@ module Net   #:nodoc:
 
     def end_transport(req, res)
       @curr_http_version = res.http_version
+      @last_communicated = nil
       if @socket.closed?
         D 'Conn socket closed'
       elsif not res.body and @close_on_empty_response
@@ -1348,6 +1406,7 @@ module Net   #:nodoc:
         @socket.close
       elsif keep_alive?(req, res)
         D 'Conn keep-alive'
+        @last_communicated = Time.now
       else
         D 'Conn close'
         @socket.close
@@ -1928,6 +1987,25 @@ module Net   #:nodoc:
 
     private
 
+    class Chunker #:nodoc:
+      def initialize(sock)
+        @sock = sock
+        @prev = nil
+      end
+
+      def write(buf)
+        # avoid memcpy() of buf, buf can huge and eat memory bandwidth
+        @sock.write("#{buf.bytesize.to_s(16)}\r\n")
+        rv = @sock.write(buf)
+        @sock.write("\r\n")
+        rv
+      end
+
+      def finish
+        @sock.write("0\r\n\r\n")
+      end
+    end
+
     def send_request_with_body(sock, ver, path, body)
       self.content_length = body.bytesize
       delete 'Transfer-Encoding'
@@ -1946,14 +2024,13 @@ module Net   #:nodoc:
       write_header sock, ver, path
       wait_for_continue sock, ver if sock.continue_timeout
       if chunked?
-        while s = f.read(1024)
-          sock.write(sprintf("%x\r\n", s.length) << s << "\r\n")
-        end
-        sock.write "0\r\n\r\n"
+        chunker = Chunker.new(sock)
+        IO.copy_stream(f, chunker)
+        chunker.finish
       else
-        while s = f.read(1024)
-          sock.write s
-        end
+        # copy_stream can sendfile() to sock.io unless we use SSL.
+        # If sock.io is an SSLSocket, copy_stream will hit SSL_write()
+        IO.copy_stream(f, sock.io)
       end
     end
 

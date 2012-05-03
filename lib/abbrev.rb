@@ -10,22 +10,23 @@
 # $Id$
 #++
 
-# Calculate the set of unique abbreviations for a given set of strings.
+##
+# Calculates the set of unique abbreviations for a given set of strings.
 #
 #   require 'abbrev'
 #   require 'pp'
 #
-#   pp Abbrev::abbrev(['ruby', 'rules']).sort
+#   pp Abbrev.abbrev(['ruby', 'rules'])
 #
-# <i>Generates:</i>
+# Generates:
 #
-#   [["rub", "ruby"],
-#    ["ruby", "ruby"],
-#    ["rul", "rules"],
-#    ["rule", "rules"],
-#    ["rules", "rules"]]
+#   { "rub"   =>  "ruby",
+#     "ruby"  =>  "ruby",
+#     "rul"   =>  "rules",
+#     "rule"  =>  "rules",
+#     "rules" =>  "rules" }
 #
-# Also adds an +abbrev+ method to class +Array+.
+# It also adds an +abbrev+ method to class Array.
 
 module Abbrev
 
@@ -84,7 +85,7 @@ class Array
   # the pattern or starting with the string are considered.
   #
   #   %w{ car cone }.abbrev   #=> { "ca" => "car", "car" => "car",
-  #                                 "co" => "cone", "con" => cone",
+  #                                 "co" => "cone", "con" => "cone",
   #                                 "cone" => "cone" }
   def abbrev(pattern = nil)
     Abbrev::abbrev(self, pattern)

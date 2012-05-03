@@ -49,7 +49,7 @@ static VALUE mSyslog_close(VALUE self)
 
     closelog();
 
-    free((void *)syslog_ident);
+    xfree((void *)syslog_ident);
     syslog_ident = NULL;
     syslog_options = syslog_facility = syslog_mask = -1;
     syslog_opened = 0;
@@ -111,7 +111,7 @@ static VALUE mSyslog_close(VALUE self)
  * LOG_KERN:: A kernel message (not sendable by user processes, so not of
  *            much use to Ruby, but listed here for completeness).
  *
- * LOG_LRP:: Line printer subsystem.
+ * LOG_LPR:: Line printer subsystem.
  *
  * LOG_MAIL:: Mail delivery or transport subsystem.
  *
