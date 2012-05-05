@@ -1680,11 +1680,23 @@ rb_class_strict_questionmark(VALUE self)
     return Qfalse;
 }
 
+VALUE
+rb_f_require_unstrict(VALUE obj, VALUE fname)
+{
+    VALUE result;
+    VALUE tmp = ruby_strict;
+    ruby_strict = Qfalse;
+    result = rb_f_require(obj, fname);
+    ruby_strict = tmp;
+    return result;
+}
+
 void Init_strict(void)
 {
     rb_mStrictAttributeAccess = rb_define_module("StrictAttributeAccess");
     rb_define_module_function(rb_mStrictAttributeAccess, "included", rb_strict_included, 1);
     rb_define_method(rb_cClass, "strict?", rb_class_strict_questionmark, 0);
+    rb_define_global_function("require_unstrict", rb_f_require_unstrict, 1);
 }
 
 
