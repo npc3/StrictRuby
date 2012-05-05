@@ -8,3 +8,4 @@ cd $DIR
 ../ruby strict_questionmark.rb
 ../ruby monkeypatch.rb
 ../ruby classvars.rb
+../ruby assignment_operators.rb

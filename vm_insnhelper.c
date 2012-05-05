@@ -1368,7 +1368,7 @@ vm_getivar(VALUE obj, ID id, IC ic)
 	}
 	if (UNLIKELY(val == Qundef)) {
 	    rb_warning("instance variable %s not initialized", rb_id2name(id));
-            if(RTEST(ruby_strict) || RTEST(rb_class_strict_questionmark(klass))) {
+            if(RTEST(rb_class_strict_questionmark(klass))) {
                 rb_noattribute_error(id, "no instance variable named %s", rb_id2name(id));
             }
 	    val = Qnil;
