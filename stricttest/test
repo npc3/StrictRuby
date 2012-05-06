@@ -1,4 +1,4 @@
 #!/bin/bash
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DIR/..
-bootstraptest/runner.rb stricttest/test_strict.rb
+./ruby -I$DIR bootstraptest/runner.rb stricttest/test_strict.rb

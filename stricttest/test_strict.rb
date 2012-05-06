@@ -239,3 +239,46 @@ assert_equal 'true', %q{
 
   Test.strict?
 }
+
+#require_unstrict exists
+assert_equal 'true', %q{Kernel.respond_to? 'require_unstrict'}
+
+#require_unstrict works
+#this is a little terrible I admit, we have to make sure that the interpreter
+#assert_equal is using has the same load path as ours. note the interpolation.
+assert_equal '', %Q{
+  #$LOAD_PATH.each do |f|
+    $LOAD_PATH.unshift f
+  end
+  $STRICT = true
+  require_unstrict 'unstrictrequired'
+  Required.new.succeed
+}
+
+# ||= operator
+assert_equal 'ok', %q{
+  class Test
+    include StrictAttributeAccess
+    def succeed
+      @doesnt_exist ||= 'ok'
+    end
+  end
+
+  Test.new.succeed
+}
+
+# &&= operator
+assert_equal 'no instance variable named @doesnt_exist', %q{
+  class Test
+    include StrictAttributeAccess
+    def fail
+      @doesnt_exist &&= 'ok'
+    end
+  end
+
+  begin
+    Test.new.fail
+  rescue NoAttributeError => e
+    e
+  end
+}
