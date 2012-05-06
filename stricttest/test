@@ -1,7 +1,4 @@
 #!/bin/bash
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd $DIR
-for F in *.rb; do
-    echo ===$F===
-    ../ruby $F
-done
+cd $DIR/..
+bootstraptest/runner.rb stricttest/test_strict.rb

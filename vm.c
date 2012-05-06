@@ -2329,6 +2329,7 @@ ruby_vm_debug_ptr(rb_vm_t *vm)
     return &vm->debug;
 }
 
+/* StrictRuby: return the location of the strict var in the given vm */
 VALUE *
 ruby_vm_strict_ptr(rb_vm_t *vm)
 {
@@ -2347,6 +2348,7 @@ rb_ruby_debug_ptr(void)
     return ruby_vm_debug_ptr(GET_VM());
 }
 
+/* StrictRuby: return the location of the strict var in the current vm */
 VALUE *
 rb_ruby_strict_ptr(void)
 {

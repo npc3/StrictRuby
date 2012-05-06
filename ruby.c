@@ -127,6 +127,7 @@ usage(const char *name)
     /* This message really ought to be max 23 lines.
      * Removed -h because the user already knows that option. Others? */
 
+    /* StrictRuby: added --strict to help msg */
     static const char *const usage_msg[] = {
 	"-0[octal]       specify record separator (\\0, if no argument)",
 	"-a              autosplit mode with -n or -p (splits $_ into $F)",
@@ -1033,7 +1034,7 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 		opt->verbose = 1;
 		ruby_verbose = Qtrue;
 	    }
-            else if (strcmp("strict", s) == 0) {
+            else if (strcmp("strict", s) == 0) { /* StrictRuby: handle --strict option */
                 ruby_strict = Qtrue;
             }
 	    else if (strcmp("yydebug", s) == 0) {
@@ -1775,7 +1776,7 @@ ruby_prog_init(void)
     rb_define_variable("$DEBUG", &ruby_debug);
     rb_define_variable("$-d", &ruby_debug);
 
-    rb_define_variable("$STRICT", &ruby_strict);
+    rb_define_variable("$STRICT", &ruby_strict); /*StrictRuby: register $STRICT global var */
 
     rb_define_hooked_variable("$0", &rb_progname, 0, set_arg0);
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);

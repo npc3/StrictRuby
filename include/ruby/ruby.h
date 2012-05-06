@@ -649,7 +649,7 @@ struct RClass {
     rb_classext_t *ptr;
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
-    VALUE strict;
+    VALUE strict; /* StrictRuby: defines whether class is using strict attribute access */
 };
 #define RCLASS_SUPER(c) rb_class_get_superclass(c)
 #define RMODULE_IV_TBL(m) RCLASS_IV_TBL(m)
@@ -1179,10 +1179,10 @@ VALUE rb_equal(VALUE,VALUE);
 
 VALUE *rb_ruby_verbose_ptr(void);
 VALUE *rb_ruby_debug_ptr(void);
-VALUE *rb_ruby_strict_ptr(void);
+VALUE *rb_ruby_strict_ptr(void); /* StrictRuby: defined in vm.c */
 #define ruby_verbose (*rb_ruby_verbose_ptr())
 #define ruby_debug   (*rb_ruby_debug_ptr())
-#define ruby_strict (*rb_ruby_strict_ptr())
+#define ruby_strict (*rb_ruby_strict_ptr()) /* StrictRuby: global var for $STRICT */
 
 PRINTF_ARGS(NORETURN(void rb_raise(VALUE, const char*, ...)), 2, 3);
 PRINTF_ARGS(NORETURN(void rb_fatal(const char*, ...)), 1, 2);

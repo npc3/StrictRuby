@@ -56,7 +56,7 @@ VALUE rb_obj_public_methods(int argc, VALUE *argv, VALUE obj);
 int rb_obj_basic_to_s_p(VALUE);
 void Init_class_hierarchy(void);
 
-VALUE rb_class_strict_questionmark(VALUE self);
+VALUE rb_class_strict_questionmark(VALUE self); /* StrictRuby: defined in class.c */
 
 /* compile.c */
 int rb_dvar_defined(ID);

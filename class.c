@@ -79,6 +79,9 @@ rb_class_boot(VALUE super)
     RCLASS_M_TBL(klass) = st_init_numtable();
 
     OBJ_INFECT(klass, super);
+
+    RCLASS(klass)->strict = ruby_strict; /*StrictRuby: initialize strict with value of $STRICT*/
+
     return (VALUE)klass;
 }
 
@@ -1658,7 +1661,11 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 }
 
 
-/*dumb stuff*/
+/*
+ * StrictRuby: Initialize various stuff for strict
+ * should probably be in it's own file, but I didn't want to have
+ * to muck about with the build system
+ */
 
 static VALUE rb_mStrictAttributeAccess;
 
